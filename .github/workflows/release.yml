@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.asset_name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_name: keyforge-x86_64-unknown-linux-gnu
+            binary_name: keyforge
+            archive_name: keyforge-x86_64-unknown-linux-gnu.tar.gz
+
+          - os: macos-13
+            asset_name: keyforge-x86_64-apple-darwin
+            binary_name: keyforge
+            archive_name: keyforge-x86_64-apple-darwin.tar.gz
+
+          - os: macos-latest
+            asset_name: keyforge-aarch64-apple-darwin
+            binary_name: keyforge
+            archive_name: keyforge-aarch64-apple-darwin.tar.gz
+
+          - os: windows-latest
+            asset_name: keyforge-x86_64-pc-windows-msvc
+            binary_name: keyforge.exe
+            archive_name: keyforge-x86_64-pc-windows-msvc.zip
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Prepare package directory
+        shell: bash
+        run: |
+          mkdir -p package
+          cp "target/release/${{ matrix.binary_name }}" "package/${{ matrix.binary_name }}"
+
+      - name: Package Unix archive
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          tar -czf "${{ matrix.archive_name }}" -C package "${{ matrix.binary_name }}"
+
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "package/${{ matrix.binary_name }}" -DestinationPath "${{ matrix.archive_name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive_name }}
+          path: ${{ matrix.archive_name }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Add install scripts
+        shell: bash
+        run: |
+          cp scripts/install.sh dist/install.sh
+                
+      - name: Generate SHA256SUMS
+        shell: bash
+        working-directory: dist
+        run: |
+          sha256sum * > SHA256SUMS
+
+      - name: Create release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes
