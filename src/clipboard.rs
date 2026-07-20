@@ -6,7 +6,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-static INTERRUPED: AtomicBool = AtomicBool::new(false);
+static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+
 pub fn write_to_clipboard(password: &SecretVec, timeout: u32) -> Result<(), String> {
     let password_text = std::str::from_utf8(password.as_bytes())
         .map_err(|e| format!("generated password is not valid UTF-8: {e}"))?
@@ -25,7 +26,7 @@ pub fn write_to_clipboard(password: &SecretVec, timeout: u32) -> Result<(), Stri
     wait_for_timeout_or_interrupt(timeout);
     clear_if_unchanged(&mut clipboard, &password_text)?;
 
-    if INTERRUPED.load(Ordering::SeqCst) {
+    if INTERRUPTED.load(Ordering::SeqCst) {
         return Err("interrupted".to_string());
     }
     Ok(())
@@ -33,7 +34,7 @@ pub fn write_to_clipboard(password: &SecretVec, timeout: u32) -> Result<(), Stri
 
 fn install_interrupt_handler() -> Result<(), String> {
     ctrlc::set_handler(|| {
-        INTERRUPED.store(true, Ordering::SeqCst);
+        INTERRUPTED.store(true, Ordering::SeqCst);
     })
     .map_err(|e| format!("failed to install interrupt handler: {e}"))
 }
@@ -42,7 +43,7 @@ fn wait_for_timeout_or_interrupt(timeout: u32) {
     let deadline = Instant::now() + Duration::from_secs(timeout as u64);
 
     while Instant::now() < deadline {
-        if INTERRUPED.load(Ordering::SeqCst) {
+        if INTERRUPTED.load(Ordering::SeqCst) {
             break;
         }
         thread::sleep(Duration::from_millis(200));
