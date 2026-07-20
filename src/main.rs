@@ -76,7 +76,7 @@ fn run() -> Result<(), String> {
     };
     valid_options(&options)?;
 
-    let password = term::get_master_password()?;
+    let password = term::get_master_password(site_cfg.is_none())?;
     let salt = build_salt(&options.site, &options.username);
     let key = generate_key(&password, &salt)?;
     let generated = encode(&key, options.length, options.symbols)?;

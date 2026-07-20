@@ -2,12 +2,16 @@ use rpassword::prompt_password;
 
 use crate::sensitive::SecretVec;
 
-pub fn get_master_password() -> Result<SecretVec, String> {
+pub fn get_master_password(confirm: bool) -> Result<SecretVec, String> {
     loop {
         let first = prompt_password("Enter master password: ")
             .map_err(|e| format!("failed to read password: {e}"))?;
 
         validate_password(&first)?;
+
+        if !confirm {
+            return SecretVec::new(first.into_bytes());
+        }
 
         let second = prompt_password("Confirm master password: ")
             .map_err(|e| format!("failed to read password: {e}"))?;
