@@ -1,7 +1,20 @@
+use std::sync::Once;
+
 use zeroize::Zeroize;
 pub struct SecretVec {
     data: Vec<u8>,
     locked: bool,
+}
+
+static MLOCK_WARN: Once = Once::new();
+
+fn warn_memory_lock_failed(err: &std::io::Error) {
+    MLOCK_WARN.call_once(|| {
+        eprintln!(
+            "warning: failed to lock memory (mlock: {err}); \
+                     secrets will not be pinned in RAM. Continuing anyway."
+        );
+    });
 }
 
 impl SecretVec {
@@ -22,9 +35,11 @@ impl SecretVec {
                 };
 
                 if result != 0 {
-                    return Err(std::io::Error::last_os_error().to_string());
+                    let err = std::io::Error::last_os_error();
+                    warn_memory_lock_failed(&err);
+                } else {
+                    secret.locked = true;
                 }
-                secret.locked = true;
             }
         }
 
