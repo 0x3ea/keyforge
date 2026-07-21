@@ -8,15 +8,22 @@ dirs = "6"
 serde = {version= "1",features=["derive"]}
 serde_json = "1"
 zeroize = "1"
-argon2= "0.5"
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
 hmac = "0.12"
 sha2 = "0.10"
 clap = { version = "4", features = ["derive"] }
 url = "2"
 rpassword = "7"
-arboard = "3"
+arboard = { version = "3", default-features = false }
 ctrlc = "3"
 clap_complete = "4"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
