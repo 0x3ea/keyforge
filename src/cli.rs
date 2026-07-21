@@ -87,4 +87,56 @@ mod tests {
         assert!(normalize_site(" ").is_err());
         assert!(normalize_site("    ").is_err());
     }
+
+    #[test]
+    fn parses_gen_with_flags() {
+        let cli = Cli::try_parse_from([
+            "keyforge",
+            "gen",
+            "github.com",
+            "-u",
+            "alice",
+            "-l",
+            "20",
+            "-s",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Commands::Gen(a) => {
+                assert_eq!(a.site, "github.com");
+                assert_eq!(a.username.as_deref(), Some("alice"));
+                assert_eq!(a.length, Some(20));
+                assert!(a.symbols);
+            }
+            _ => panic!("expected Gen"),
+        }
+    }
+
+    #[test]
+    fn gen_without_site_errors() {
+        assert!(Cli::try_parse_from(["keyforge", "gen"]).is_err());
+    }
+
+    #[test]
+    fn parses_config() {
+        let cli = Cli::try_parse_from(["keyforge", "config"]).unwrap();
+        assert!(matches!(cli.command, Commands::Config));
+    }
+
+    #[test]
+    fn parses_completion() {
+        let cli = Cli::try_parse_from(["keyforge", "completion", "bash"]).unwrap();
+        assert!(matches!(cli.command, Commands::Completion { .. }));
+    }
+
+    #[test]
+    fn no_args_errors() {
+        assert!(Cli::try_parse_from(["keyforge"]).is_err());
+    }
+
+    #[test]
+    fn old_usage_rejected() {
+        assert!(Cli::try_parse_from(["keyforge", "github.com"]).is_err());
+    }
 }

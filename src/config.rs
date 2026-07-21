@@ -278,4 +278,66 @@ mod tests {
         assert!(!cfg.default_remember);
         assert!(cfg.sites.is_empty());
     }
+
+    #[test]
+    fn render_default_config() {
+        let cfg = Config::default();
+        let path = std::path::Path::new("/tmp/keyforge-test.json");
+        let out = render_config_summary(&cfg, path);
+
+        assert!(out.contains("Config file: /tmp/keyforge-test.json"));
+        assert!(out.contains("Defaults:"));
+        assert!(out.contains("username: (none)"));
+        assert!(out.contains("length  : 16"));
+        assert!(out.contains("symbols : false"));
+        assert!(out.contains("Remembered sites:"));
+        assert!(out.contains("  (none)"));
+    }
+
+    #[test]
+    fn render_config_with_site() {
+        let mut cfg = Config::default();
+        cfg.sites.insert(
+            "github.com".to_string(),
+            SiteConfig {
+                user_name: Some("alice".to_string()),
+                length: Some(20),
+                symbols: Some(true),
+            },
+        );
+
+        let out = render_config_summary(&cfg, std::path::Path::new("/tmp/keyforge-test.json"));
+
+        assert!(out.contains("github.com:"));
+        assert!(out.contains("username: alice"));
+        assert!(out.contains("length  : 20"));
+        assert!(out.contains("symbols : true"));
+        assert!(!out.contains("  (none)")); // 有站点时不再显示 (none)
+    }
+
+    #[test]
+    fn render_sites_are_sorted() {
+        let mut cfg = Config::default();
+        cfg.sites.insert(
+            "zlast.com".to_string(),
+            SiteConfig {
+                user_name: None,
+                length: None,
+                symbols: None,
+            },
+        );
+        cfg.sites.insert(
+            "afirst.com".to_string(),
+            SiteConfig {
+                user_name: None,
+                length: None,
+                symbols: None,
+            },
+        );
+
+        let out = render_config_summary(&cfg, std::path::Path::new("/tmp/keyforge-test.json"));
+        let a = out.find("afirst.com").unwrap();
+        let z = out.find("zlast.com").unwrap();
+        assert!(a < z, "sites should be sorted alphabetically");
+    }
 }
