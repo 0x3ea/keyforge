@@ -1,0 +1,29 @@
+name: Audit
+
+# Monthly scan for known dependency vulnerabilities (RustSec advisory DB).
+# This catches new CVEs that appear for already-locked deps, which a
+# push/PR-triggered audit would miss. Run on day 2 at 07:17 UTC to avoid the
+# 1st-of-the-month cron rush.
+on:
+  schedule:
+    - cron: "17 7 2 * *"
+  workflow_dispatch: # allow manual runs, e.g. right after a dependency bump
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install --locked cargo-audit
+
+      - name: Audit dependencies for known vulnerabilities
+        run: cargo audit
