@@ -1,7 +1,8 @@
+use clap_complete::Shell;
 use keyforge::{
-    cli::{self, Commands},
+    cli::{self, Commands, GenArgs},
     clipboard, completions,
-    config::{self, SiteConfig},
+    config::{self, config_path, get_config, render_config_summary, SiteConfig},
     crypto::{build_salt, generate_key},
     encode::encode,
     term,
@@ -29,21 +30,17 @@ fn main() {
 fn run() -> Result<(), String> {
     let args = cli::Cli::parse();
 
-    if let Some(Commands::Completion { shell }) = args.command {
-        let mut cmd = cli::Cli::command();
-        let output = completions::generate_completion(shell, &mut cmd)?;
-        print!("{output}");
-        return Ok(());
+    match args.command {
+        Commands::Gen(a) => run_gen(a),
+        Commands::Completion { shell } => run_completion(shell),
+        Commands::Config => run_config(),
     }
+}
 
+fn run_gen(args: GenArgs) -> Result<(), String> {
     let mut cfg = config::get_config()?;
 
-    let raw_site = args
-        .site
-        .as_deref()
-        .ok_or_else(|| "site is required".to_string())?;
-
-    let site = cli::normalize_site(raw_site)?;
+    let site = cli::normalize_site(&args.site)?;
     let site_cfg = cfg.sites.get(&site);
 
     let username = args
@@ -102,6 +99,20 @@ fn run() -> Result<(), String> {
         clipboard::write_to_clipboard(&generated, options.timeout)?;
     }
 
+    Ok(())
+}
+
+fn run_completion(shell: Shell) -> Result<(), String> {
+    let mut cmd = cli::Cli::command();
+    let output = completions::generate_completion(shell, &mut cmd)?;
+    print!("{output}");
+    Ok(())
+}
+
+fn run_config() -> Result<(), String> {
+    let cfg = get_config()?;
+    let path = config_path()?;
+    print!("{}", render_config_summary(&cfg, &path));
     Ok(())
 }
 

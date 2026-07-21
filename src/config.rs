@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     #[serde(rename = "defaultUserName", default)]
@@ -97,6 +98,58 @@ pub fn set_config(cfg: &Config) -> Result<(), String> {
     Ok(())
 }
 
+pub fn render_config_summary(cfg: &Config, path: &Path) -> String {
+    let mut out = String::new();
+
+    writeln!(out, "Config file: {}", path.display()).unwrap();
+    writeln!(out).unwrap();
+    writeln!(out, "Defaults:").unwrap();
+    writeln!(
+        out,
+        "  {}",
+        row("username", &fmt_str_or_none(&cfg.default_user_name))
+    )
+    .unwrap();
+    writeln!(out, "  {}", row("length", &cfg.default_length.to_string())).unwrap();
+    writeln!(
+        out,
+        "  {}",
+        row("symbols", &cfg.default_symbols.to_string())
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "  {}",
+        row("timeout", &cfg.default_timeout.to_string())
+    )
+    .unwrap();
+    writeln!(out, "  {}", row("print", &cfg.default_print.to_string())).unwrap();
+    writeln!(
+        out,
+        "  {}",
+        row("remember", &cfg.default_remember.to_string())
+    )
+    .unwrap();
+    writeln!(out).unwrap();
+
+    writeln!(out, "Remembered sites:").unwrap();
+    if cfg.sites.is_empty() {
+        writeln!(out, "  (none)").unwrap();
+    } else {
+        let mut entries: Vec<_> = cfg.sites.iter().collect();
+        entries.sort_by_key(|(k, _)| k.as_str());
+
+        for (site, sc) in entries {
+            writeln!(out, "  {site}:").unwrap();
+            writeln!(out, "    {}", row("username", &fmt_opt_str(&sc.user_name))).unwrap();
+            writeln!(out, "    {}", row("length", &fmt_opt(&sc.length))).unwrap();
+            writeln!(out, "    {}", row("symbols", &fmt_opt(&sc.symbols))).unwrap();
+        }
+    }
+
+    out
+}
+
 fn ensure_config_dir(path: &std::path::Path) -> Result<(), String> {
     let dir = path
         .parent()
@@ -160,6 +213,26 @@ fn default_length() -> u32 {
 }
 fn default_timeout() -> u32 {
     45
+}
+
+fn row(label: &str, value: &str) -> String {
+    format!("{label:<8}: {value}")
+}
+
+fn fmt_str_or_none(s: &str) -> String {
+    if s.is_empty() { "(none)" } else { s }.to_string()
+}
+
+fn fmt_opt_str(o: &Option<String>) -> String {
+    o.as_deref()
+        .map(fmt_str_or_none)
+        .unwrap_or_else(|| "(none)".to_string())
+}
+
+fn fmt_opt<T: std::fmt::Display>(o: &Option<T>) -> String {
+    o.as_ref()
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "(default)".to_string())
 }
 
 #[cfg(test)]

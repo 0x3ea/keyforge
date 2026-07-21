@@ -1,15 +1,32 @@
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use clap_complete::Shell;
 use url::Url;
 #[derive(Parser, Debug)]
 #[command(name = "keyforge")]
 #[command(version)]
 #[command(about = "Deterministic password generator")]
+#[command(arg_required_else_help = true)]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Option<Commands>,
+    pub command: Commands,
+}
 
-    pub site: Option<String>,
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Generate a deterministic password for <site>
+    Gen(GenArgs),
+    /// Print shell completion script for the given shell.
+    Completion {
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+    /// Show current configuration and the config file path
+    Config,
+}
+
+#[derive(Args, Debug)]
+pub struct GenArgs {
+    pub site: String,
 
     #[arg(short = 'u', long = "username")]
     pub username: Option<String>,
@@ -28,14 +45,6 @@ pub struct Cli {
 
     #[arg(long = "timeout")]
     pub timeout: Option<u32>,
-}
-
-#[derive(Subcommand, Debug)]
-pub enum Commands {
-    Completion {
-        #[arg(value_enum)]
-        shell: Shell,
-    },
 }
 
 pub fn normalize_site(raw: &str) -> Result<String, String> {
