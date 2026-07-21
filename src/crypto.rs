@@ -2,8 +2,18 @@ use argon2::{Algorithm, Argon2, Params, Version};
 
 use crate::sensitive::SecretVec;
 
+const KDF_DOMAIN: &str = "keyforge-argon2-v1";
+
 pub fn build_salt(site: &str, username: &str) -> Vec<u8> {
-    format!("{}:{}{}:{}", site.len(), site, username.len(), username).into_bytes()
+    format!(
+        "{}|{}|{}|{}|{}",
+        KDF_DOMAIN,
+        site.len(),
+        site,
+        username.len(),
+        username
+    )
+    .into_bytes()
 }
 
 pub fn generate_key(password: &SecretVec, salt: &[u8]) -> Result<SecretVec, String> {
@@ -23,10 +33,10 @@ pub fn generate_key(password: &SecretVec, salt: &[u8]) -> Result<SecretVec, Stri
 mod tests {
     use super::*;
     #[test]
-    fn buiild_stable_salt() {
+    fn build_stable_salt() {
         assert_eq!(
             build_salt("github.com", "alice"),
-            b"10:github.com5:alice".to_vec()
+            b"keyforge-argon2-v1|10|github.com|5|alice".to_vec()
         );
     }
 }
