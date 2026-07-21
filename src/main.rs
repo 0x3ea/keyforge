@@ -79,15 +79,32 @@ fn run_gen(args: GenArgs) -> Result<(), String> {
     let generated = encode(&key, options.length, options.symbols)?;
 
     if options.remember {
-        cfg.sites.insert(
-            options.site.clone(),
-            SiteConfig {
-                user_name: Some(options.username.clone()),
-                length: Some(options.length),
-                symbols: Some(options.symbols),
-            },
-        );
-        config::set_config(&cfg)?;
+        let should_save = match cfg.sites.get(&options.site) {
+            //when username in json doesn't match input
+            Some(existing) if existing.user_name.as_deref() != Some(options.username.as_str()) => {
+                let prompt = format!(
+                    "{} is remembered as {}; overwrite with {}? [y/N] ",
+                    options.site,
+                    existing.user_name.as_deref().unwrap_or("(none)"),
+                    options.username,
+                );
+                term::confirm(&prompt)?
+            }
+            // new site or change length/symbols
+            _ => true,
+        };
+
+        if should_save {
+            cfg.sites.insert(
+                options.site.clone(),
+                SiteConfig {
+                    user_name: Some(options.username.clone()),
+                    length: Some(options.length),
+                    symbols: Some(options.symbols),
+                },
+            );
+            config::set_config(&cfg)?;
+        }
     }
 
     if options.print {
