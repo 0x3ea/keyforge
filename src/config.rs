@@ -340,4 +340,64 @@ mod tests {
         let z = out.find("zlast.com").unwrap();
         assert!(a < z, "sites should be sorted alphabetically");
     }
+
+    // --- permission handling (unix only) -------------------------------------
+    // These exercise the file-level permission logic directly. We deliberately
+    // do NOT test `ensure_config_dir` here: it chmods the *parent* directory to
+    // 0o700, which would corrupt a shared temp dir like /tmp.
+
+    #[cfg(unix)]
+    fn scratch_file(label: &str) -> PathBuf {
+        let mut p = std::env::temp_dir();
+        // pid + unique label keeps parallel tests from colliding; remove any
+        // leftover from a previous crashed run before reusing the path.
+        p.push(format!("keyforge-test-{label}-{}.json", std::process::id()));
+        let _ = fs::remove_file(&p);
+        p
+    }
+
+    #[cfg(unix)]
+    fn mode_of(path: &Path) -> u32 {
+        use std::os::unix::fs::PermissionsExt;
+        fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fixes_world_readable_config_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let path = scratch_file("fix_perms");
+        fs::write(&path, b"{}").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+
+        check_config_file_permissions(&path).unwrap();
+
+        assert_eq!(mode_of(&path), 0o600);
+        let _ = fs::remove_file(&path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn leaves_secure_config_permissions_unchanged() {
+        use std::os::unix::fs::PermissionsExt;
+        let path = scratch_file("keep_perms");
+        fs::write(&path, b"{}").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        check_config_file_permissions(&path).unwrap();
+
+        assert_eq!(mode_of(&path), 0o600);
+        let _ = fs::remove_file(&path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_config_file_is_owner_only() {
+        let path = scratch_file("write_perms");
+
+        write_config_file(&path, r#"{"sites":{}}"#).unwrap();
+
+        assert_eq!(mode_of(&path), 0o600);
+        let _ = fs::remove_file(&path);
+    }
 }

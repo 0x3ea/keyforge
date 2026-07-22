@@ -50,16 +50,39 @@ fn wait_for_timeout_or_interrupt(timeout: u32) {
     }
 }
 
-fn clear_if_unchanged(clipboard: &mut Clipboard, expected: &str) -> Result<(), String> {
-    let current = match clipboard.get_text() {
-        Ok(text) => text,
-        Err(_) => return Ok(()),
-    };
+/// Only clear the clipboard when its current contents still match what we wrote.
+/// A read failure (`None`) means we can't confirm ownership, so we leave it alone.
+fn should_clear(current: Option<&str>, expected: &str) -> bool {
+    current.is_some_and(|c| c == expected)
+}
 
-    if current == expected {
+fn clear_if_unchanged(clipboard: &mut Clipboard, expected: &str) -> Result<(), String> {
+    let current = clipboard.get_text().ok();
+
+    if should_clear(current.as_deref(), expected) {
         clipboard
             .set_text("")
             .map_err(|e| format!("failed to clear clipboard: {e}"))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clears_when_unchanged() {
+        assert!(should_clear(Some("hunter2"), "hunter2"));
+    }
+
+    #[test]
+    fn does_not_clear_when_changed() {
+        assert!(!should_clear(Some("something-else"), "hunter2"));
+    }
+
+    #[test]
+    fn does_not_clear_when_unreadable() {
+        assert!(!should_clear(None, "hunter2"));
+    }
 }

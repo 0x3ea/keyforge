@@ -93,4 +93,53 @@ mod tests {
 
         assert_ne!(with_symbols.as_bytes(), without_symbols.as_bytes());
     }
+
+    /// Chi-squared goodness-of-fit: output characters should be uniformly
+    /// distributed across the (62-char) alphanumeric set.
+    ///
+    /// `encode` is deterministic in the seed, so chi2 is a fixed value on every
+    /// run — this is not a flaky statistical test. Rejection sampling yields a
+    /// uniform distribution; a regression that drops it (e.g. mapping `byte %
+    /// charset_len` directly) produces modulo bias that pushes chi2 into the
+    /// hundreds, well above the threshold.
+    #[test]
+    fn charset_is_uniform_chi_squared() {
+        let charset = ALPHANUM;
+        let categories = charset.len();
+        let length = 200u32;
+        let seeds = 256u32;
+
+        let mut counts = vec![0u64; categories];
+        for i in 0..seeds {
+            let seed = SecretVec::new(vec![i as u8; 64]).unwrap();
+            let password = encode(&seed, length, false).unwrap();
+
+            for &byte in password.as_bytes() {
+                let index = charset
+                    .iter()
+                    .position(|&c| c == byte)
+                    .expect("encoded byte must be in the charset");
+                counts[index] += 1;
+            }
+        }
+
+        let total: u64 = counts.iter().sum();
+        let expected = total as f64 / categories as f64;
+        let chi2: f64 = counts
+            .iter()
+            .map(|&observed| {
+                let diff = observed as f64 - expected;
+                diff * diff / expected
+            })
+            .sum();
+
+        // df = categories - 1 = 61. Threshold = 2 * df: for a uniform source
+        // P(chi2 > 2*df) is negligible (<1e-6), so this never false-fails yet
+        // still flags real bias.
+        let threshold = 2.0 * (categories as f64 - 1.0);
+        assert!(
+            chi2 < threshold,
+            "chi2 = {chi2:.2} exceeds threshold {threshold:.0}; charset is not uniform"
+        );
+    }
 }
