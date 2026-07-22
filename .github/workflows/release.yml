@@ -9,8 +9,30 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    name: Verify tag matches Cargo.toml version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Check tag version matches Cargo.toml
+        shell: bash
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="$(awk -F'"' '/^version = / {print $2; exit}' Cargo.toml)"
+          echo "git tag:          ${GITHUB_REF_NAME}"
+          echo "tag version:      ${tag}"
+          echo "Cargo.toml ver:   ${manifest}"
+          if [ "${tag}" != "${manifest}" ]; then
+            echo "::error::git tag '${GITHUB_REF_NAME}' (version ${tag}) does not match Cargo.toml version '${manifest}'. Bump version in Cargo.toml before tagging."
+            exit 1
+          fi
+
   build:
     name: Build ${{ matrix.asset_name }}
+    needs: verify
     runs-on: ${{ matrix.os }}
 
     strategy:
